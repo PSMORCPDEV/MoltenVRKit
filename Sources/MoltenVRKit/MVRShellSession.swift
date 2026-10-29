@@ -29,6 +29,8 @@ public final class MVRShellSession: ObservableObject {
     private var nextWireId: UInt32 = 1
     private var started = false
     private var screenObserver: NSObjectProtocol?
+    private var toastPanel: MVRPanel?
+    private var toastDismissTask: Task<Void, Never>?
 
     /// `icon` appears next to your app's name in MoltenVR's dock (128px is plenty).
     /// Omitted, it falls back to your app's own icon.
@@ -85,9 +87,49 @@ public final class MVRShellSession: ObservableObject {
         connection.stop()
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
         screenObserver = nil
+        toastDismissTask?.cancel()
+        toastDismissTask = nil
+        toastPanel = nil
         for p in panels.values { p.host?.tearDown() }
         panels.removeAll()
         state = .disconnected
+    }
+
+    /// Show a popup notification in the headset. A new toast replaces the current one and
+    /// restarts its dismissal timer. The toast uses one panel slot while it is visible.
+    public func showToast(_ message: String, duration: Duration = .seconds(3)) {
+        let panel: MVRPanel
+        if let existing = toastPanel, existing.isPresented {
+            panel = existing
+            panel.setContent { MVRToastView(message: message) }
+        } else {
+            panel = presentPanel(
+                id: "__moltenvrkit.toast",
+                title: "Notification",
+                pointSize: CGSize(width: 600, height: 150),
+                placement: MVRPanelPlacement(y: 1.7, z: -1.2, widthMeters: 0.9,
+                                             zOrder: 100)
+            ) {
+                MVRToastView(message: message)
+            }
+            toastPanel = panel
+        }
+
+        toastDismissTask?.cancel()
+        toastDismissTask = Task { [weak self, weak panel] in
+            try? await Task.sleep(for: duration)
+            guard !Task.isCancelled, let self, let panel,
+                  self.toastPanel === panel else { return }
+            self.dismissToast()
+        }
+    }
+
+    /// Dismiss the currently visible toast, if any.
+    public func dismissToast() {
+        toastDismissTask?.cancel()
+        toastDismissTask = nil
+        toastPanel?.remove()
+        toastPanel = nil
     }
 
     /// Present a SwiftUI view as a VR shell panel. `pointSize` is the panel's layout size

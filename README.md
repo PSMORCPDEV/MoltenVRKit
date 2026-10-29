@@ -15,6 +15,8 @@ session.presentPanel(id: "main", title: "My App",
                      placement: MVRPanelPlacement(x: 0.6, y: 1.6, z: -1.4)) {
     MyPanelView()
 }
+
+session.showToast("Changes saved", duration: .seconds(3))
 ```
 
 Add it with SwiftPM:
@@ -48,6 +50,10 @@ user moves a panel, `panel.onMoved` gives you the new placement to save.
 
 The session reconnects by itself and re-sends its panels, so it doesn't matter whether
 your app or MoltenVR starts first. Each app gets up to 4 panels.
+
+`showToast(_:duration:)` displays a popup notification in the headset, replacing any
+currently visible toast and restarting its timer. Toasts use one panel slot while visible;
+call `dismissToast()` to close one early.
 
 On macOS 14.4 and later capturing your own windows needs no permission. On 14.0 to 14.3
 it needs Screen Recording: see `MVRScreenRecording`.
